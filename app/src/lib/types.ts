@@ -31,7 +31,18 @@ export interface ProductSchema {
 export interface GenerationResult {
   productId: string;
   schema: ProductSchema;
-  generatedImages: string[];
-  gifUrl: string;
-  cardnewsUrls?: string[];
+  /** GIF candidates the user picks from (shown in the same grid as the catalog). */
+  gifCandidates: string[];
+}
+
+/** Step 6-7 output: what got pushed to the store after a GIF is chosen. */
+export interface ApplyResult {
+  ok: boolean;
+  detailUrl: string;
+  /** Thumbnail list: original first image kept, chosen GIF appended after it. */
+  thumbnails: string[];
+  /** GIF inserted at the very top of the detail page. */
+  detailTopGif: string;
+  /** Generated cardnews images (with the GIF inserted among them). */
+  cardnewsUrls: string[];
 }
