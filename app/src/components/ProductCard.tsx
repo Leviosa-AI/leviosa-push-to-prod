@@ -12,17 +12,17 @@ export function ProductCard({
     <button
       type="button"
       onClick={() => onSelect(product)}
-      className="group relative flex aspect-[4/5] flex-col rounded-2xl bg-white p-5 text-left transition hover:shadow-lg"
+      className="group relative flex aspect-square flex-col rounded-xl bg-white p-2.5 text-left transition hover:shadow-lg"
     >
       {/* top row: badge + open arrow */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between text-[10px]">
         {product.bestSeller ? (
-          <span className="rounded-full bg-[#f8501e] px-2.5 py-1 text-xs font-semibold text-white">
-            ★ best seller
+          <span className="rounded-full bg-[#f8501e] px-1.5 py-0.5 font-semibold text-white">
+            ★ best
           </span>
         ) : product.staffPick ? (
-          <span className="rounded-full bg-[#ffe6dd] px-2.5 py-1 text-xs font-semibold text-[#f8501e]">
-            ✦ staff picks
+          <span className="rounded-full bg-[#ffe6dd] px-1.5 py-0.5 font-semibold text-[#f8501e]">
+            ✦ pick
           </span>
         ) : (
           <span />
@@ -31,26 +31,21 @@ export function ProductCard({
       </div>
 
       {/* image */}
-      <div className="flex flex-1 items-center justify-center py-3">
+      <div className="flex flex-1 items-center justify-center py-1">
         <img
           src={product.thumbnailUrl}
           alt={product.name}
           loading="lazy"
-          className="max-h-[60%] w-auto max-w-[80%] object-contain"
+          className="max-h-full w-auto max-w-[78%] object-contain"
         />
       </div>
 
       {/* footer */}
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="line-clamp-1 text-sm font-semibold text-zinc-900">
-            {product.name}
-          </p>
-          <p className="mt-1 truncate text-xs text-zinc-400">
-            {product.brand} · {product.category}
-          </p>
-        </div>
-        <span className="shrink-0 rounded-md bg-zinc-100 px-2.5 py-1 text-sm font-medium text-zinc-600">
+      <div className="flex items-end justify-between gap-1.5">
+        <p className="line-clamp-1 min-w-0 text-[11px] font-semibold leading-tight text-zinc-900">
+          {product.name}
+        </p>
+        <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">
           {product.currency}
           {product.price.toLocaleString()}
         </span>
