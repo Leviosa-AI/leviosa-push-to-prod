@@ -30,8 +30,12 @@ export async function generateAssets(
     /** called each poll with the candidates so far ("" = still generating) so
      * the UI can show finished ones immediately instead of waiting for all 9. */
     onPartial?: (candidates: string[]) => void;
+    /** abort the create + poll loop when the caller navigates away / switches
+     * product, so we don't keep hammering the poll endpoint in the background. */
+    signal?: AbortSignal;
   } = {},
 ): Promise<GenerationResult> {
+  const { signal } = opts;
   const schema = { productId, title: opts.name ?? "", highlights: [], description: "", attributes: {} };
 
   // 1) create 9 predictions
@@ -39,6 +43,7 @@ export async function generateAssets(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ thumbnailUrl: opts.thumbnailUrl, name: opts.name }),
+    signal,
   });
   if (!createRes.ok) {
     throw new Error(`generate(create) failed: ${createRes.status} ${await createRes.text()}`);
@@ -46,29 +51,68 @@ export async function generateAssets(
   const { ids } = (await createRes.json()) as { ids: string[] };
 
   // 2) poll; emit partial results as each one finishes (progressive display).
+  //
+  // We poll ONLY the ids that haven't settled yet. A Replicate prediction's
+  // output URL is stable once it succeeds, so re-polling finished ones just
+  // wastes requests and — by handing back a fresh array every tick — forces the
+  // whole candidate grid (incl. already-playing videos) to re-render/reload.
+  // Polling the shrinking pending set means finished cells stop changing.
   const deadline = Date.now() + 5 * 60_000;
   const settled = (s: string) => s === "succeeded" || s === "failed" || s === "canceled";
+  const outputs: string[] = ids.map(() => ""); // latest output per id ("" = pending)
+  const done: boolean[] = ids.map(() => false);
+
   for (;;) {
-    await new Promise((r) => setTimeout(r, 3000));
-    const pollRes = await fetch(`/api/replicate-generate?ids=${ids.join(",")}`);
+    await delay(3000, signal);
+    const pendingIdx = ids.map((_, i) => i).filter((i) => !done[i]);
+    if (!pendingIdx.length) return { productId, schema, gifCandidates: outputs };
+
+    const pendingIds = pendingIdx.map((i) => ids[i]);
+    const pollRes = await fetch(`/api/replicate-generate?ids=${pendingIds.join(",")}`, { signal });
     if (!pollRes.ok) {
       throw new Error(`generate(poll) failed: ${pollRes.status} ${await pollRes.text()}`);
     }
     const { results } = (await pollRes.json()) as {
       results: { status: string; output: string | null; error: string | null }[];
     };
-    const candidates = results.map((r) => r.output ?? ""); // "" = pending/failed
-    opts.onPartial?.(candidates);
+
+    // results come back in the same order we requested (pendingIds); fold each
+    // back into its original slot. Only notify the UI if something changed.
+    let changed = false;
+    results.forEach((r, k) => {
+      const i = pendingIdx[k];
+      const out = r.output ?? "";
+      if (out !== outputs[i]) {
+        outputs[i] = out;
+        changed = true;
+      }
+      if (settled(r.status)) done[i] = true; // failures count as settled
+    });
+    if (changed) opts.onPartial?.([...outputs]);
 
     // done when every prediction has settled (tolerate individual failures so
-    // one bad generation doesn't sink the whole batch).
-    if (results.every((r) => settled(r.status))) {
-      return { productId, schema, gifCandidates: candidates };
-    }
-    if (Date.now() > deadline) {
-      return { productId, schema, gifCandidates: candidates };
+    // one bad generation doesn't sink the whole batch), or we hit the cap.
+    if (done.every(Boolean) || Date.now() > deadline) {
+      return { productId, schema, gifCandidates: outputs };
     }
   }
+}
+
+/** setTimeout as a promise that rejects (AbortError) the moment `signal` fires,
+ * so an aborted poll loop stops waiting immediately instead of after the tick. */
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException("Aborted", "AbortError"));
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(t);
+        reject(new DOMException("Aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
 }
 
 /**

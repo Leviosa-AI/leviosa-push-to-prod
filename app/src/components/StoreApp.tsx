@@ -74,7 +74,9 @@ export function StoreApp() {
     if (startedFor.current === selected.id) return;
     startedFor.current = selected.id;
     let cancelled = false;
+    const ac = new AbortController();
     generateAssets(selected.id, {
+      signal: ac.signal,
       thumbnailUrl: selected.thumbnailUrl,
       name: selected.name,
       // show finished candidates as they arrive (once the first one is ready,
@@ -95,13 +97,15 @@ export function StoreApp() {
         setError(null);
       })
       .catch((e) => {
-        if (cancelled) return;
+        // Aborted on unmount / product switch — not a real failure, just stop.
+        if (cancelled || (e instanceof DOMException && e.name === "AbortError")) return;
         startedFor.current = null; // allow a retry on failure
         setError(e instanceof Error ? e.message : String(e));
         router.replace(buildHref({ product: null, gif: null }), { scroll: false });
       });
     return () => {
       cancelled = true;
+      ac.abort();
     };
     // re-run only when the product id changes; buildHref/router are stable enough.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -166,8 +170,12 @@ export function StoreApp() {
   const goCatalog = () => router.push(buildHref({ product: null, gif: null, apply: null }));
   const selectProduct = (id: string) =>
     router.push(buildHref({ product: id, gif: null, apply: null }));
-  const chooseGif = (idx: number) =>
-    router.push(buildHref({ gif: String(idx), apply: null }), { scroll: false });
+  // Stable identity so CandidateGrid's memoized cells don't re-render (and reload
+  // their videos) every poll tick. buildHref only changes when the URL changes.
+  const chooseGif = useCallback(
+    (idx: number) => router.push(buildHref({ gif: String(idx), apply: null }), { scroll: false }),
+    [buildHref, router],
+  );
   const backToCandidates = () => router.push(buildHref({ gif: null, apply: null }));
   const applyNow = () => router.push(buildHref({ apply: "1" }));
 
