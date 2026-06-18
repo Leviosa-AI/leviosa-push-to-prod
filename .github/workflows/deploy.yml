@@ -1,0 +1,38 @@
+name: Deploy to Vercel (production)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# orgId/projectId are not secrets — they identify the Vercel project in CI.
+# The token IS a secret: repo Settings → Secrets and variables → Actions → VERCEL_TOKEN
+env:
+  VERCEL_ORG_ID: team_4F5c30NtyUGedw2gnEOSRLWK
+  VERCEL_PROJECT_ID: prj_xOiAVeSzqTH7lJCQuwH2E1n3fJt4
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Next.js app lives in the app/ subdirectory (monorepo)
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build project artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to production
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
