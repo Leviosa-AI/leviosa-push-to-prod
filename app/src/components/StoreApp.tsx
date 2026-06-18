@@ -37,6 +37,10 @@ export function StoreApp() {
   const [gen, setGen] = useState<GenerationResult | null>(null);
   const [applied, setApplied] = useState<{ key: string; result: ApplyResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // hackathon toggle: false = 프리메이드(mock), true = 리얼콜(Replicate, 9 parallel).
+  // Only changeable on the catalog screen, so the generate effect can safely
+  // capture it when a product is selected.
+  const [realMode, setRealMode] = useState(false);
 
   // Build an href off the current params, setting/deleting the given keys.
   const buildHref = useCallback(
@@ -56,7 +60,11 @@ export function StoreApp() {
   useEffect(() => {
     if (!selected) return;
     let cancelled = false;
-    generateAssets(selected.id)
+    generateAssets(selected.id, {
+      real: realMode,
+      thumbnailUrl: selected.thumbnailUrl,
+      name: selected.name,
+    })
       .then((r) => {
         if (cancelled) return;
         setGen(r);
@@ -125,13 +133,13 @@ export function StoreApp() {
 
   return (
     <div className="min-h-screen bg-[#e9e8e6] text-zinc-900">
-      <header className="sticky top-0 z-10 flex items-center bg-[#e9e8e6]/90 px-6 py-4 backdrop-blur">
-        <button type="button" onClick={goCatalog} className="text-2xl font-bold text-[#f8501e]">
+      <header className="sticky top-0 z-10 flex items-center bg-[#e9e8e6]/90 px-6 py-2 backdrop-blur">
+        <button type="button" onClick={goCatalog} className="text-xl font-bold text-[#f8501e]">
           ✱
         </button>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 pb-20">
+      <main className="mx-auto max-w-6xl px-6 pb-4">
         {error && (
           <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
@@ -140,11 +148,35 @@ export function StoreApp() {
 
         {/* step 1-2: product catalog — 3x3 visible on one screen */}
         {view === "catalog" && (
-          <div className="mx-auto grid max-w-2xl grid-cols-3 gap-3">
-            {PRODUCTS.map((p) => (
-              <ProductCard key={p.id} product={p} onSelect={(prod) => selectProduct(prod.id)} />
-            ))}
-          </div>
+          <>
+            <div className="mx-auto grid max-w-2xl grid-cols-3 gap-3">
+              {PRODUCTS.map((p) => (
+                <ProductCard key={p.id} product={p} onSelect={(prod) => selectProduct(prod.id)} />
+              ))}
+            </div>
+
+            {/* hackathon toggle: 프리메이드 vs 리얼콜 (bottom-left) */}
+            <div className="fixed bottom-4 left-4 z-20 flex items-center rounded-full bg-white p-1 text-xs font-medium shadow-md">
+              <button
+                type="button"
+                onClick={() => setRealMode(false)}
+                className={`rounded-full px-3 py-1.5 transition ${
+                  !realMode ? "bg-[#f8501e] text-white" : "text-zinc-500"
+                }`}
+              >
+                프리메이드
+              </button>
+              <button
+                type="button"
+                onClick={() => setRealMode(true)}
+                className={`rounded-full px-3 py-1.5 transition ${
+                  realMode ? "bg-[#f8501e] text-white" : "text-zinc-500"
+                }`}
+              >
+                리얼콜
+              </button>
+            </div>
+          </>
         )}
 
         {/* loading between steps */}
@@ -163,7 +195,7 @@ export function StoreApp() {
         {/* step 4-5: GIF candidates in the same grid layout */}
         {view === "candidates" && genReady && gen && (
           <>
-            <div className="mb-8 flex flex-col items-center gap-1 text-center">
+            <div className="mb-3 flex flex-col items-center gap-0.5 text-center">
               <button type="button" onClick={goCatalog} className="self-start text-sm text-zinc-500 hover:text-zinc-900">
                 ← 카탈로그로
               </button>

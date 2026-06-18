@@ -40,10 +40,54 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 // Products come hardcoded from lib/products.ts (the 투데이뮤직 catalog), so the
 // pipeline starts at step 3 once the user picks one.
 
-/** Pipeline step 3-5: scrape + Claude schema + image gen + gif for the chosen product. */
-export async function generateAssets(productId: string): Promise<GenerationResult> {
-  if (USE_MOCK) return mockGeneration(productId);
-  return post<GenerationResult>("/api/generate", { productId });
+/**
+ * Pipeline step 3-5: produce 9 GIF candidates for the chosen product.
+ *
+ * Two paths, picked by the bottom-left toggle on the catalog (hackathon switch):
+ *  - premade (default): instant mock candidates, no backend needed.
+ *  - real: fire 9 Replicate predictions in parallel via our Next API route
+ *    (`/api/replicate-generate`, which holds REPLICATE_API_TOKEN server-side)
+ *    and resolve once all 9 are back.
+ */
+export async function generateAssets(
+  productId: string,
+  opts: { real?: boolean; thumbnailUrl?: string; name?: string } = {},
+): Promise<GenerationResult> {
+  if (!opts.real) return premadeGeneration(productId);
+
+  // 1) create 9 predictions
+  const createRes = await fetch("/api/replicate-generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ thumbnailUrl: opts.thumbnailUrl, name: opts.name }),
+  });
+  if (!createRes.ok) {
+    throw new Error(`generate(create) failed: ${createRes.status} ${await createRes.text()}`);
+  }
+  const { ids } = (await createRes.json()) as { ids: string[] };
+
+  // 2) poll until all 9 succeed (video gen can take a few minutes)
+  const deadline = Date.now() + 5 * 60_000;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const pollRes = await fetch(`/api/replicate-generate?ids=${ids.join(",")}`);
+    if (!pollRes.ok) {
+      throw new Error(`generate(poll) failed: ${pollRes.status} ${await pollRes.text()}`);
+    }
+    const { results } = (await pollRes.json()) as {
+      results: { status: string; output: string | null; error: string | null }[];
+    };
+    const failed = results.find((r) => r.status === "failed" || r.status === "canceled");
+    if (failed) throw new Error(`generation failed: ${failed.error ?? "unknown"}`);
+    if (results.every((r) => r.status === "succeeded" && r.output)) {
+      return {
+        productId,
+        schema: { productId, title: opts.name ?? "", highlights: [], description: "", attributes: {} },
+        gifCandidates: results.map((r) => r.output as string),
+      };
+    }
+    if (Date.now() > deadline) throw new Error("generation timed out");
+  }
 }
 
 /**
@@ -74,9 +118,9 @@ export async function applyChosenGif(
   return post<ApplyResult>("/api/apply", { productId, gifUrl, originalThumbnail });
 }
 
-// --- mock data (NEXT_PUBLIC_USE_MOCK=1) ----------------------------------------
+// --- premade / mock data ------------------------------------------------------
 
-function mockGeneration(productId: string): Promise<GenerationResult> {
+function premadeGeneration(productId: string): Promise<GenerationResult> {
   const result: GenerationResult = {
     productId,
     schema: {

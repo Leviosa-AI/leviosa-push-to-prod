@@ -12,31 +12,29 @@ export function ProductCard({
     <button
       type="button"
       onClick={() => onSelect(product)}
-      className="group relative flex aspect-square flex-col rounded-xl bg-white p-2.5 text-left transition hover:shadow-lg"
+      className="group flex flex-col gap-2 rounded-xl bg-white p-2.5 text-left transition hover:shadow-lg"
     >
-      {/* top row: badge + open arrow */}
-      <div className="flex items-start justify-between text-[10px]">
-        {product.bestSeller ? (
-          <span className="rounded-full bg-[#f8501e] px-1.5 py-0.5 font-semibold text-white">
-            ★ best
-          </span>
-        ) : product.staffPick ? (
-          <span className="rounded-full bg-[#ffe6dd] px-1.5 py-0.5 font-semibold text-[#f8501e]">
-            ✦ pick
-          </span>
-        ) : (
-          <span />
-        )}
-        <span className="text-zinc-400 transition group-hover:text-zinc-900">↗</span>
-      </div>
-
-      {/* image */}
-      <div className="flex flex-1 items-center justify-center py-1">
+      {/* fixed square image box — every thumbnail renders at the same size */}
+      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-zinc-50">
+        <div className="absolute left-1.5 top-1.5 z-10 text-[10px]">
+          {product.bestSeller ? (
+            <span className="rounded-full bg-[#f8501e] px-1.5 py-0.5 font-semibold text-white">
+              ★ best
+            </span>
+          ) : product.staffPick ? (
+            <span className="rounded-full bg-[#ffe6dd] px-1.5 py-0.5 font-semibold text-[#f8501e]">
+              ✦ pick
+            </span>
+          ) : null}
+        </div>
+        <span className="absolute right-1.5 top-1.5 z-10 text-[10px] text-zinc-400 transition group-hover:text-zinc-900">
+          ↗
+        </span>
         <img
           src={product.thumbnailUrl}
           alt={product.name}
           loading="lazy"
-          className="max-h-full w-auto max-w-[78%] object-contain"
+          className="h-full w-full object-cover"
         />
       </div>
 
