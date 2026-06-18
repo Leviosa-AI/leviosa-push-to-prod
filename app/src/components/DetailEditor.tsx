@@ -1,13 +1,13 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Rnd } from "react-rnd";
 import { isVideo } from "@/lib/media";
 import { ChromaLoopVideo } from "@/components/ChromaLoopVideo";
 import type { Product } from "@/lib/types";
 
-/** Where the GIF sits on the detail-page canvas (px, relative to the background). */
+/** GIF의 배경 기준 정규화(0~1) 위치/크기. 캔버스 해상도와 무관하게 백엔드에서 재현 가능. */
 export type Placement = { x: number; y: number; width: number; height: number };
 
 /**
@@ -29,22 +29,39 @@ export function DetailEditor({
   onPlacementChange?: (p: Placement) => void;
   onApply: () => void;
 }) {
+  // box는 캔버스 px(react-rnd용), 리포트는 배경 크기로 나눈 정규화 값.
   const [box, setBox] = useState<Placement>({ x: 24, y: 24, width: 200, height: 200 });
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // 현재 px box를 배경(=캔버스) 크기로 정규화해 상위에 보고.
+  const report = (boxPx: Placement) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const cw = el.clientWidth || 1;
+    const ch = el.clientHeight || 1;
+    onPlacementChange?.({
+      x: boxPx.x / cw,
+      y: boxPx.y / ch,
+      width: boxPx.width / cw,
+      height: boxPx.height / ch,
+    });
+  };
 
   const update = (next: Placement) => {
     setBox(next);
-    onPlacementChange?.(next);
+    report(next);
   };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* scrollable detail page; the GIF overlay is bounded to the page image */}
       <div className="min-h-0 flex-1 overflow-auto rounded-2xl bg-white shadow-sm">
-        <div className="relative w-full">
+        <div ref={wrapRef} className="relative w-full">
           <img
             src={backgroundUrl}
             alt={`${product.name} 상세페이지`}
             draggable={false}
+            onLoad={() => report(box)}
             className="block w-full select-none"
           />
 

@@ -72,15 +72,15 @@ export async function generateAssets(
 }
 
 /**
- * Pipeline step 6-7: with the chosen GIF, (1) append it to the thumbnail list
- * (keeping the original first image), (2) insert it at the top of the detail
- * page, (3) generate cardnews with the GIF inserted.
+ * Pipeline step 6-7: 고른 영상을 상세페이지에 반영한다. placement(정규화 0~1)+backgroundUrl을
+ * 주면 백엔드가 배경 위 그 위치에 영상을 합성해 단일 GIF로 만들어 상세를 교체한다.
  */
 export async function applyChosenGif(
   productId: string,
   gifUrl: string,
   originalThumbnail: string,
   placement?: { x: number; y: number; width: number; height: number },
+  backgroundUrl?: string,
 ): Promise<ApplyResult> {
   if (APPLY_USE_MOCK) {
     await new Promise((r) => setTimeout(r, 1200));
@@ -95,7 +95,7 @@ export async function applyChosenGif(
   const res = await fetch("/api/apply", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ productId, gifUrl, originalThumbnail, placement }),
+    body: JSON.stringify({ productId, gifUrl, originalThumbnail, placement, backgroundUrl }),
   });
   if (!res.ok) {
     throw new Error(`apply failed: ${res.status} ${await res.text()}`);

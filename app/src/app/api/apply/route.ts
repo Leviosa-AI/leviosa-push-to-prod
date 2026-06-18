@@ -13,19 +13,20 @@ import type { ApplyResult } from "@/lib/types";
 // 상세페이지를 그 GIF로 교체(replace-with-video)한다.
 //
 // 자산(gifUrl 파라미터)은 실제로는 Replicate i2v MP4 URL이며, 백엔드가 fetch해서 변환한다.
-// ⚠️ placement({x,y,width,height})는 편집기 미리보기용 — replace 모드는 상세를 통째 교체하므로
-//    좌표는 반영되지 않는다. (정밀 배치 반영은 별도 백엔드 작업)
+// placement(정규화 0~1) + backgroundUrl 을 함께 보내면 백엔드가 배경 위 그 위치에 영상을
+// 합성(flatten)해 단일 GIF로 만들어 반영한다 → 드래그한 위치가 네이버 상세에 그대로 반영됨.
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const { productId, gifUrl, originalThumbnail } = (await req
+  const { productId, gifUrl, originalThumbnail, placement, backgroundUrl } = (await req
     .json()
     .catch(() => ({}))) as {
     productId?: string;
     gifUrl?: string;
     originalThumbnail?: string;
     placement?: { x: number; y: number; width: number; height: number };
+    backgroundUrl?: string;
   };
 
   if (!productId || !gifUrl) {
@@ -43,6 +44,12 @@ export async function POST(req: Request) {
     );
   }
 
+  // 배경 URL을 절대 URL로 변환(백엔드가 fetch 가능하도록). /detail-bg.jpg 같은 상대경로 대비.
+  const absBackgroundUrl =
+    backgroundUrl && placement
+      ? new URL(backgroundUrl, req.url).toString()
+      : undefined;
+
   try {
     // 1) 상품명 → 원상품번호(originProductNo) 해석
     const resolved = await resolveProductCodeByName(product.name);
@@ -59,12 +66,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2) 콘바 MP4 → (서버에서 GIF 변환) → 상세페이지 통째 교체
+    // 2) 콘바 MP4 → (서버에서 GIF 변환/합성) → 상세페이지 교체
+    //    backgroundUrl+placement 있으면 배경 위 좌표대로 합성, 아니면 영상만 변환.
     const replaced = await replaceDetailWithVideo({
       productCode: resolved.productCode,
       videoSource: gifUrl, // 실제로는 MP4 URL
       mode: "replace",
       alt: product.name,
+      backgroundUrl: absBackgroundUrl,
+      placement: absBackgroundUrl ? placement : undefined,
     });
     if (!replaced.success) {
       return NextResponse.json(

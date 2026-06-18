@@ -137,6 +137,14 @@ export interface ReplaceVideoResult {
  * - mode: 'replace'(기본, detailContent 통째 교체) / 'top' / 'bottom'.
  * - productCode 는 네이버 원상품번호(originProductNo). resolveProductCodeByName 로 먼저 해석.
  */
+export interface NormalizedPlacement {
+  /** 배경 기준 0~1 정규화 좌표/크기 */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export function replaceDetailWithVideo(args: {
   productCode: number;
   videoSource: string;
@@ -144,6 +152,10 @@ export function replaceDetailWithVideo(args: {
   fps?: number;
   maxWidth?: number;
   alt?: string;
+  /** 합성 배경 이미지 절대 URL — placement와 함께 주면 배경 위 좌표대로 합성 */
+  backgroundUrl?: string;
+  /** 배경 기준 정규화(0~1) 오버레이 위치/크기 */
+  placement?: NormalizedPlacement;
 }): Promise<ReplaceVideoResult> {
   return callBackend<ReplaceVideoResult>("/commerce/detail/replace-with-video", {
     product_code: args.productCode,
@@ -152,6 +164,8 @@ export function replaceDetailWithVideo(args: {
     fps: args.fps ?? 12,
     max_width: args.maxWidth ?? null,
     alt: args.alt ?? "",
+    background_url: args.backgroundUrl ?? null,
+    placement: args.placement ?? null,
   });
 }
 

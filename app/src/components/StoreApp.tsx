@@ -121,7 +121,15 @@ export function StoreApp() {
   useEffect(() => {
     if (!selected || gif === null || applyKey === null) return;
     let cancelled = false;
-    applyChosenGif(selected.id, gif, selected.thumbnailUrl, placementRef.current ?? undefined)
+    // 합성 배경 = 편집기에 깔린 그 상세 배경(드래그 좌표 기준 이미지).
+    const bgUrl = selected.detailImageUrl ?? detailBackground();
+    applyChosenGif(
+      selected.id,
+      gif,
+      selected.thumbnailUrl,
+      placementRef.current ?? undefined,
+      bgUrl,
+    )
       .then((r) => {
         if (cancelled) return;
         setApplied({ key: applyKey, result: r });
