@@ -1,155 +1,137 @@
 "use client";
 
-import { useState } from "react";
-import { Stepper } from "@/components/Stepper";
-import { ProductGrid } from "@/components/ProductGrid";
+import { useMemo, useState } from "react";
+import { CategoryTabs } from "@/components/CategoryTabs";
+import { ProductCard } from "@/components/ProductCard";
 import { ResultView } from "@/components/ResultView";
-import { applyToDetailPage, fetchProducts, generateAssets } from "@/lib/api";
-import type { GenerationResult, PipelineStep, Product } from "@/lib/types";
+import { applyToDetailPage, generateAssets } from "@/lib/api";
+import { CATEGORIES, PRODUCTS, STORE_NAME } from "@/lib/products";
+import type { GenerationResult, Product } from "@/lib/types";
+
+type View = "catalog" | "generate" | "result";
 
 export default function Home() {
-  const [step, setStep] = useState<PipelineStep>("input");
-  const [storeUrl, setStoreUrl] = useState("");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [view, setView] = useState<View>("catalog");
+  const [activeCat, setActiveCat] = useState("all");
+  const [selected, setSelected] = useState<Product | null>(null);
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function run<T>(fn: () => Promise<T>, after: (v: T) => void) {
-    setLoading(true);
+  const filtered = useMemo(
+    () =>
+      activeCat === "all"
+        ? PRODUCTS
+        : PRODUCTS.filter((p) => p.category === activeCat),
+    [activeCat],
+  );
+
+  function handleSelect(p: Product) {
+    setSelected(p);
+    setView("generate");
     setError(null);
-    fn()
-      .then(after)
+    setResult(null);
+    generateAssets(p.id)
+      .then((r) => {
+        setResult(r);
+        setView("result");
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : String(e));
+        setView("catalog");
+      });
+  }
+
+  function handleApply() {
+    if (!selected || !result) return;
+    setLoading(true);
+    applyToDetailPage(selected.id, result)
+      .then((r) => alert(`상세페이지에 반영 완료: ${r.detailUrl}`))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }
 
-  const handleFetch = () =>
-    run(
-      () => fetchProducts(storeUrl),
-      (items) => {
-        setProducts(items);
-        setStep("select");
-      },
-    );
-
-  const handleGenerate = () => {
-    if (!selectedId) return;
-    setStep("generate");
-    run(
-      () => generateAssets(selectedId),
-      (r) => {
-        setResult(r);
-        setStep("result");
-      },
-    );
-  };
-
-  const handleApply = () => {
-    if (!selectedId || !result) return;
-    run(
-      () => applyToDetailPage(selectedId, result),
-      (r) => {
-        alert(`상세페이지에 반영 완료: ${r.detailUrl}`);
-      },
-    );
-  };
+  function reset() {
+    setView("catalog");
+    setSelected(null);
+    setResult(null);
+  }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-8 px-6 py-12">
-      <header className="flex items-center gap-3">
-        <span className="text-3xl">🏯</span>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Push to prod</h1>
-          <p className="text-sm text-zinc-500">
-            스마트스토어 상품 → AI 에셋 자동 생성 파이프라인
-          </p>
+    <div className="min-h-screen bg-[#e9e8e6] text-zinc-900">
+      {/* top bar */}
+      <header className="sticky top-0 z-10 flex items-center justify-between bg-[#e9e8e6]/90 px-6 py-4 backdrop-blur">
+        <span className="text-2xl font-bold text-[#f8501e]">✱</span>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={reset}
+            className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-[#f8501e] shadow-sm"
+          >
+            {STORE_NAME}
+          </button>
+          <span className="hidden font-serif italic text-zinc-500 sm:inline">
+            push to prod.
+          </span>
         </div>
       </header>
 
-      <Stepper current={step} />
+      <main className="mx-auto max-w-6xl px-6 pb-20">
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
-      {error && (
-        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-          {error}
-        </div>
-      )}
+        {view === "catalog" && (
+          <>
+            <div className="mb-8 flex justify-center">
+              <CategoryTabs
+                categories={CATEGORIES}
+                active={activeCat}
+                onChange={setActiveCat}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((p) => (
+                <ProductCard key={p.id} product={p} onSelect={handleSelect} />
+              ))}
+            </div>
+          </>
+        )}
 
-      {step === "input" && (
-        <section className="flex flex-col gap-4">
-          <label className="text-sm font-medium">스마트스토어 URL</label>
-          <input
-            type="url"
-            value={storeUrl}
-            onChange={(e) => setStoreUrl(e.target.value)}
-            placeholder="https://smartstore.naver.com/..."
-            className="rounded-lg border border-zinc-300 bg-transparent px-4 py-3 text-sm outline-none focus:border-foreground dark:border-zinc-700"
-          />
-          <button
-            type="button"
-            onClick={handleFetch}
-            disabled={!storeUrl || loading}
-            className="self-start rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background disabled:opacity-40"
-          >
-            {loading ? "불러오는 중…" : "상품 불러오기"}
-          </button>
-        </section>
-      )}
+        {view === "generate" && (
+          <div className="flex flex-col items-center gap-5 py-32 text-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-zinc-300 border-t-[#f8501e]" />
+            <p className="text-sm font-medium">{selected?.name}</p>
+            <p className="text-sm text-zinc-500">
+              상세페이지 스크래핑 → Claude 정리 → 이미지 생성 → GIF 제작 중…
+            </p>
+          </div>
+        )}
 
-      {step === "select" && (
-        <section className="flex flex-col gap-4">
-          <ProductGrid
-            products={products}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={!selectedId || loading}
-            className="self-start rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background disabled:opacity-40"
-          >
-            선택 상품으로 에셋 생성
-          </button>
-        </section>
-      )}
-
-      {step === "generate" && (
-        <section className="flex flex-col items-center gap-4 py-16 text-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-zinc-300 border-t-foreground" />
-          <p className="text-sm text-zinc-500">
-            상세페이지 스크래핑 → Claude 정리 → 이미지 생성 → GIF 제작 중…
-          </p>
-        </section>
-      )}
-
-      {step === "result" && result && (
-        <section className="flex flex-col gap-6">
-          <ResultView result={result} />
-          <div className="flex gap-3">
+        {view === "result" && result && (
+          <div className="mx-auto max-w-2xl rounded-2xl bg-white p-8">
+            <button
+              type="button"
+              onClick={reset}
+              className="mb-6 text-sm text-zinc-500 hover:text-zinc-900"
+            >
+              ← 카탈로그로
+            </button>
+            <h2 className="mb-6 text-lg font-semibold">{selected?.name}</h2>
+            <ResultView result={result} />
             <button
               type="button"
               onClick={handleApply}
               disabled={loading}
-              className="rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background disabled:opacity-40"
+              className="mt-8 rounded-full bg-[#f8501e] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
             >
-              상세페이지에 반영
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setStep("input");
-                setResult(null);
-                setSelectedId(null);
-              }}
-              className="rounded-full border border-zinc-300 px-6 py-3 text-sm font-medium dark:border-zinc-700"
-            >
-              처음부터
+              {loading ? "반영 중…" : "상세페이지에 반영"}
             </button>
           </div>
-        </section>
-      )}
-    </main>
+        )}
+      </main>
+    </div>
   );
 }

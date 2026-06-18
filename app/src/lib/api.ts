@@ -2,7 +2,7 @@
 // Backend is the team's existing server (cloned into ../api). Point at it via
 // NEXT_PUBLIC_API_URL. Until it's wired, set NEXT_PUBLIC_USE_MOCK=1 to demo the UI.
 
-import type { GenerationResult, Product } from "./types";
+import type { GenerationResult } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "1";
@@ -19,11 +19,8 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** Pipeline step 1-2: resolve a smartstore URL into a list of products to pick from. */
-export async function fetchProducts(storeUrl: string): Promise<Product[]> {
-  if (USE_MOCK) return mockProducts();
-  return post<Product[]>("/api/products", { storeUrl });
-}
+// Products come hardcoded from lib/products.ts (the 투데이뮤직 catalog), so the
+// pipeline starts at step 3 once the user picks one.
 
 /** Pipeline step 3-5: scrape + Claude schema + image gen + gif for the chosen product. */
 export async function generateAssets(productId: string): Promise<GenerationResult> {
@@ -41,17 +38,6 @@ export async function applyToDetailPage(
 }
 
 // --- mock data (NEXT_PUBLIC_USE_MOCK=1) ----------------------------------------
-
-function mockProducts(): Promise<Product[]> {
-  const items: Product[] = Array.from({ length: 6 }, (_, i) => ({
-    id: `mock-${i + 1}`,
-    name: `샘플 상품 ${i + 1}`,
-    price: 19900 + i * 5000,
-    thumbnailUrl: `https://picsum.photos/seed/p2p-${i}/400/400`,
-    detailUrl: "#",
-  }));
-  return new Promise((r) => setTimeout(() => r(items), 600));
-}
 
 function mockGeneration(productId: string): Promise<GenerationResult> {
   const result: GenerationResult = {

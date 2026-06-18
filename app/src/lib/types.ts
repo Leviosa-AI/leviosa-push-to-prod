@@ -1,12 +1,21 @@
 // Domain types shared across the "Push to prod" frontend.
 // Mirrors the backend pipeline contract (see api/README.md).
 
+/** Filter bucket shown in the category tabs (derived from the catalog data). */
+export type Category = string;
+
 export interface Product {
   id: string;
   name: string;
+  brand: string;
+  category: Category;
   price: number;
+  /** display currency symbol, e.g. "$" or "₩" */
+  currency: string;
   thumbnailUrl: string;
   detailUrl: string;
+  staffPick?: boolean;
+  bestSeller?: boolean;
 }
 
 /** Step 3 output: product info formatted by Claude into a clean schema. */
@@ -26,12 +35,3 @@ export interface GenerationResult {
   gifUrl: string;
   cardnewsUrls?: string[];
 }
-
-export type PipelineStep = "input" | "select" | "generate" | "result";
-
-export const PIPELINE_STEPS: { id: PipelineStep; label: string }[] = [
-  { id: "input", label: "스토어 URL 입력" },
-  { id: "select", label: "상품 선택" },
-  { id: "generate", label: "에셋 생성" },
-  { id: "result", label: "결과 / 반영" },
-];
