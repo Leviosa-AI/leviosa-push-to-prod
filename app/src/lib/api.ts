@@ -18,7 +18,12 @@
 import type { ApplyResult, GenerationResult } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "1";
+// Mock unless a real backend URL is wired (or explicitly disabled with "0").
+// Keeps the deployed demo working with zero env config.
+const USE_MOCK =
+  process.env.NEXT_PUBLIC_USE_MOCK === "1" ||
+  (!process.env.NEXT_PUBLIC_API_URL &&
+    process.env.NEXT_PUBLIC_USE_MOCK !== "0");
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

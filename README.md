@@ -34,3 +34,14 @@ npm run dev                  # http://localhost:3000
 ```
 
 API 계약은 [`api/README.md`](api/README.md), 타입은 `app/src/lib/types.ts` 참고.
+
+## 배포 (Replit)
+
+레포가 Replit-ready 입니다 (`.replit` 설정 포함, 모노레포 `app/` 기준).
+
+1. Replit → **Create App → Import from GitHub** → `Leviosa-AI/leviosa-push-to-prod`
+2. **Run** 누르면 워크스페이스에서 dev 서버 기동
+3. **Deploy** (Autoscale) → `cd app && npm ci && npm run build` 후 `next start` 로 서빙
+
+env 없이 mock 모드로 바로 동작합니다. 실제 백엔드 연결 시 Replit Secrets에
+`NEXT_PUBLIC_API_URL` 을 넣으세요 (그러면 자동으로 라이브 모드).

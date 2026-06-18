@@ -1,0 +1,20 @@
+modules = ["nodejs-20"]
+
+# Workspace "Run" button: start the Next.js dev server on Replit's forwarded port.
+run = "cd app && npm install && npm run dev -- -p $PORT -H 0.0.0.0"
+
+[nix]
+channel = "stable-24_05"
+
+[env]
+NEXT_TELEMETRY_DISABLED = "1"
+
+# Replit Deployments (Autoscale): build once, then serve the production build.
+[deployment]
+deploymentTarget = "autoscale"
+build = ["sh", "-c", "cd app && npm ci && npm run build"]
+run = ["sh", "-c", "cd app && npm run start -- -p $PORT -H 0.0.0.0"]
+
+[[ports]]
+localPort = 3000
+externalPort = 80
