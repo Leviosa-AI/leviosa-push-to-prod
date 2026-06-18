@@ -2,17 +2,19 @@ import { NextResponse } from "next/server";
 
 import { PRODUCTS } from "@/lib/products";
 import {
-  injectDetailGif,
+  replaceDetailWithVideo,
   resolveProductCodeByName,
 } from "@/lib/leviosaServer";
 import type { ApplyResult } from "@/lib/types";
 
-// applyChosenGif() 의 실제 백엔드 배선.
+// applyChosenGif() 의 실제 백엔드 배선 (플로우 6-7).
 // 카탈로그 productId(쇼핑검색 id)는 originProductNo가 아니므로, 상품명으로 백엔드에서
-// 원상품번호를 해석한 뒤(detail/fetch) 상세 상단에 GIF를 삽입(inject-gif)한다.
+// 원상품번호를 해석한 뒤(detail/fetch), 콘바에서 고른 MP4를 보내 서버에서 GIF로 변환→
+// 상세페이지를 그 GIF로 교체(replace-with-video)한다.
 //
-// ⚠️ placement({x,y,width,height})는 프론트가 보내지만 현재 백엔드는 상단 고정 삽입만
-//    지원한다(좌표 미반영). 정밀 배치 반영은 별도 백엔드 작업 필요.
+// 자산(gifUrl 파라미터)은 실제로는 Replicate i2v MP4 URL이며, 백엔드가 fetch해서 변환한다.
+// ⚠️ placement({x,y,width,height})는 편집기 미리보기용 — replace 모드는 상세를 통째 교체하므로
+//    좌표는 반영되지 않는다. (정밀 배치 반영은 별도 백엔드 작업)
 
 export const runtime = "nodejs";
 
@@ -57,16 +59,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2) 상세페이지 상단에 GIF 삽입
-    const inject = await injectDetailGif({
+    // 2) 콘바 MP4 → (서버에서 GIF 변환) → 상세페이지 통째 교체
+    const replaced = await replaceDetailWithVideo({
       productCode: resolved.productCode,
-      gifSource: gifUrl,
-      position: "top",
+      videoSource: gifUrl, // 실제로는 MP4 URL
+      mode: "replace",
       alt: product.name,
     });
-    if (!inject.success) {
+    if (!replaced.success) {
       return NextResponse.json(
-        { error: inject.error ?? "inject-gif failed", status: inject.status },
+        { error: replaced.error ?? "replace-with-video failed", status: replaced.status },
         { status: 502 },
       );
     }
@@ -74,9 +76,9 @@ export async function POST(req: Request) {
     const result: ApplyResult = {
       ok: true,
       detailUrl: product.detailUrl,
-      // 썸네일 변경은 네이버 정책상 별도 처리 필요 — 현재는 원본 유지 + GIF 참고용으로만 반환.
-      thumbnails: [originalThumbnail ?? product.thumbnailUrl, inject.gif_url ?? gifUrl],
-      detailTopGif: inject.gif_url ?? gifUrl,
+      // 썸네일 변경은 네이버 정책상 별도 처리 필요 — 현재는 원본 유지 + 변환 GIF 참고용 반환.
+      thumbnails: [originalThumbnail ?? product.thumbnailUrl, replaced.gif_url ?? gifUrl],
+      detailTopGif: replaced.gif_url ?? gifUrl,
       cardnewsUrls: [],
     };
     return NextResponse.json(result);

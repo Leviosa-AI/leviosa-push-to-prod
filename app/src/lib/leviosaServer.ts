@@ -116,6 +116,45 @@ export function injectDetailGif(args: {
   });
 }
 
+// --- /commerce/detail/replace-with-video --------------------------------------
+
+export interface ReplaceVideoResult {
+  success: boolean;
+  /** updated | failed */
+  status: string;
+  product_code: number;
+  /** MP4→GIF 변환 후 네이버에 업로드된 GIF URL */
+  gif_url?: string;
+  error?: string;
+  status_code?: number;
+}
+
+/**
+ * 콘바 편집기에서 나온 MP4를 우리 서버로 보내 GIF로 변환(ffmpeg) 후 상세페이지에 반영한다.
+ * 네이버 커머스 API는 동영상을 받지 않으므로 서버에서 MP4→GIF로 변환한다.
+ *
+ * - videoSource: 순수 base64 / data:video/mp4;base64,... / http(s) URL (큰 파일은 URL 권장).
+ * - mode: 'replace'(기본, detailContent 통째 교체) / 'top' / 'bottom'.
+ * - productCode 는 네이버 원상품번호(originProductNo). resolveProductCodeByName 로 먼저 해석.
+ */
+export function replaceDetailWithVideo(args: {
+  productCode: number;
+  videoSource: string;
+  mode?: "replace" | "top" | "bottom";
+  fps?: number;
+  maxWidth?: number;
+  alt?: string;
+}): Promise<ReplaceVideoResult> {
+  return callBackend<ReplaceVideoResult>("/commerce/detail/replace-with-video", {
+    product_code: args.productCode,
+    video_source: args.videoSource,
+    mode: args.mode ?? "replace",
+    fps: args.fps ?? 12,
+    max_width: args.maxWidth ?? null,
+    alt: args.alt ?? "",
+  });
+}
+
 // --- 편의: 상품명 → originProductNo 해석 --------------------------------------
 
 export interface ResolveResult {

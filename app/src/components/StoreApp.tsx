@@ -245,48 +245,40 @@ export function StoreApp() {
           </>
         )}
 
-        {/* step 6-7: applied result */}
+        {/* step 6-7: applied result — 상세페이지가 GIF로 교체 완료 */}
         {view === "done" && appliedResult && (
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-2xl">
             <div className="mb-8 flex flex-col items-center gap-1 text-center">
-              <h2 className="text-lg font-semibold">반영 완료 ✓</h2>
+              <h2 className="text-lg font-semibold">상세페이지 반영 완료 ✓</h2>
+              <p className="text-sm text-zinc-500">
+                상세페이지를 생성한 GIF로 교체했어요
+              </p>
+            </div>
+
+            <Section title="상세페이지 GIF" desc="스마트스토어 상세페이지가 이 GIF로 바뀌었어요">
+              <Row>
+                <Thumb src={appliedResult.detailTopGif} badge="상세" />
+              </Row>
+            </Section>
+
+            <div className="mt-6 flex flex-col gap-3">
+              {/* 실제 스마트스토어 상품 페이지로 이동 */}
               <a
                 href={appliedResult.detailUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm text-[#f8501e] hover:underline"
+                className="rounded-full bg-[#f8501e] px-6 py-3 text-center text-sm font-semibold text-white transition hover:brightness-105"
               >
-                {appliedResult.detailUrl}
+                상품 보러 가기 →
               </a>
+              <button
+                type="button"
+                onClick={goCatalog}
+                className="rounded-full border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-600 hover:bg-zinc-100"
+              >
+                다른 상품 하기
+              </button>
             </div>
-
-            <Section title="1 · 썸네일 추가" desc="맨 첫 장은 유지하고 그 뒤에 GIF를 붙였어요">
-              <Row>
-                {appliedResult.thumbnails.map((src, i) => (
-                  <Thumb key={i} src={src} badge={i === 0 ? "기존 1번" : "추가 GIF"} />
-                ))}
-              </Row>
-            </Section>
-
-            <Section title="2 · 상세페이지 최상단 GIF" desc="상세페이지 맨 위에 GIF를 삽입했어요">
-              <Thumb src={appliedResult.detailTopGif} badge="TOP" />
-            </Section>
-
-            <Section title="3 · 카드뉴스 생성 + GIF 삽입" desc="카드뉴스를 만들고 GIF도 함께 넣었어요">
-              <Row>
-                {appliedResult.cardnewsUrls.map((src, i) => (
-                  <Thumb key={i} src={src} badge={src === appliedResult.detailTopGif ? "GIF" : `${i + 1}`} />
-                ))}
-              </Row>
-            </Section>
-
-            <button
-              type="button"
-              onClick={goCatalog}
-              className="mt-4 rounded-full bg-[#f8501e] px-6 py-3 text-sm font-semibold text-white"
-            >
-              다른 상품 하기
-            </button>
           </div>
         )}
       </main>
