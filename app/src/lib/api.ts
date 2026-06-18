@@ -99,6 +99,7 @@ export async function applyChosenGif(
   productId: string,
   gifUrl: string,
   originalThumbnail: string,
+  placement?: { x: number; y: number; width: number; height: number },
 ): Promise<ApplyResult> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 1200));
@@ -115,7 +116,7 @@ export async function applyChosenGif(
       ],
     };
   }
-  return post<ApplyResult>("/api/apply", { productId, gifUrl, originalThumbnail });
+  return post<ApplyResult>("/api/apply", { productId, gifUrl, originalThumbnail, placement });
 }
 
 // --- premade / mock data ------------------------------------------------------

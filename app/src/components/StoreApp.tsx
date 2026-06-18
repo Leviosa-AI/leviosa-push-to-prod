@@ -1,13 +1,19 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProductCard } from "@/components/ProductCard";
 import { CandidateGrid } from "@/components/CandidateGrid";
+import { DetailEditor, type Placement } from "@/components/DetailEditor";
 import { applyChosenGif, generateAssets } from "@/lib/api";
 import { PRODUCTS } from "@/lib/products";
 import type { ApplyResult, GenerationResult } from "@/lib/types";
+
+/** Placeholder 상세페이지 PNG (tall) until the real per-product asset is wired. */
+function detailBackground(productId: string) {
+  return `https://picsum.photos/seed/${productId}-detail/800/1600`;
+}
 
 // URL is the source of truth for navigation:
 //   ?product=<id>              a product is selected -> generate -> candidates
@@ -25,6 +31,10 @@ export function StoreApp() {
   const productId = searchParams.get("product");
   const gifParam = searchParams.get("gif");
   const gifIdx = gifParam !== null && gifParam !== "" ? Number(gifParam) : null;
+  const applyParam = searchParams.get("apply") === "1";
+
+  // Latest GIF placement from the editor; read when the apply step fires.
+  const placementRef = useRef<Placement | null>(null);
 
   const selected = useMemo(
     () => (productId ? PRODUCTS.find((p) => p.id === productId) ?? null : null),
@@ -88,14 +98,15 @@ export function StoreApp() {
     genReady && gifIdx !== null && gifIdx >= 0 && gifIdx < gen!.gifCandidates.length
       ? gen!.gifCandidates[gifIdx]
       : null;
-  const applyKey = selected && gif !== null ? `${selected.id}:${gifIdx}` : null;
+  // Apply only fires once the user confirms a placement in the editor (?apply=1),
+  // not the moment a candidate is picked — picking a gif opens the editor.
+  const applyKey = selected && gif !== null && applyParam ? `${selected.id}:${gifIdx}` : null;
 
-  // step 6-7: apply the chosen GIF once both the product and a valid gif are in
-  // the URL (and generation has produced candidates to index into).
+  // step 6-7: apply the chosen GIF at its placement once the editor is confirmed.
   useEffect(() => {
     if (!selected || gif === null || applyKey === null) return;
     let cancelled = false;
-    applyChosenGif(selected.id, gif, selected.thumbnailUrl)
+    applyChosenGif(selected.id, gif, selected.thumbnailUrl, placementRef.current ?? undefined)
       .then((r) => {
         if (cancelled) return;
         setApplied({ key: applyKey, result: r });
@@ -115,21 +126,27 @@ export function StoreApp() {
   const appliedResult = applyKey !== null && applied?.key === applyKey ? applied.result : null;
 
   // The view is fully derived from the URL + how far the async pipeline has run.
-  const view: "catalog" | "generate" | "candidates" | "applying" | "done" =
+  const view: "catalog" | "generate" | "candidates" | "editor" | "applying" | "done" =
     !selected
       ? "catalog"
       : !genReady
         ? "generate"
         : gif === null
           ? "candidates"
-          : !appliedResult
-            ? "applying"
-            : "done";
+          : !applyParam
+            ? "editor"
+            : !appliedResult
+              ? "applying"
+              : "done";
 
   // navigation handlers -> URL updates (router does the rest)
-  const goCatalog = () => router.push(buildHref({ product: null, gif: null }));
-  const selectProduct = (id: string) => router.push(buildHref({ product: id, gif: null }));
-  const chooseGif = (idx: number) => router.push(buildHref({ gif: String(idx) }));
+  const goCatalog = () => router.push(buildHref({ product: null, gif: null, apply: null }));
+  const selectProduct = (id: string) =>
+    router.push(buildHref({ product: id, gif: null, apply: null }));
+  const chooseGif = (idx: number) =>
+    router.push(buildHref({ gif: String(idx), apply: null }), { scroll: false });
+  const backToCandidates = () => router.push(buildHref({ gif: null, apply: null }));
+  const applyNow = () => router.push(buildHref({ apply: "1" }));
 
   return (
     <div className="min-h-screen bg-[#e9e8e6] text-zinc-900">
@@ -192,21 +209,56 @@ export function StoreApp() {
           </div>
         )}
 
-        {/* step 4-5: GIF candidates in the same grid layout */}
-        {view === "candidates" && genReady && gen && (
+        {/* step 4-5: candidate grid, then editor (grid slides left, detail on the right) */}
+        {(view === "candidates" || view === "editor") && genReady && gen && selected && (
           <>
             <div className="mb-3 flex flex-col items-center gap-0.5 text-center">
-              <button type="button" onClick={goCatalog} className="self-start text-sm text-zinc-500 hover:text-zinc-900">
-                ← 카탈로그로
+              <button
+                type="button"
+                onClick={view === "editor" ? backToCandidates : goCatalog}
+                className="self-start text-sm text-zinc-500 hover:text-zinc-900"
+              >
+                {view === "editor" ? "← 후보 전체보기" : "← 카탈로그로"}
               </button>
-              <h2 className="text-lg font-semibold">{selected?.name}</h2>
-              <p className="text-sm text-zinc-500">마음에 드는 GIF를 하나 고르면 상세페이지에 반영돼요</p>
+              <h2 className="text-lg font-semibold">{selected.name}</h2>
+              <p className="text-sm text-zinc-500">
+                {view === "editor"
+                  ? "GIF를 원하는 위치로 드래그하고 모서리를 잡아 크기를 조절하세요"
+                  : "마음에 드는 GIF를 하나 고르면 상세페이지에 올릴 수 있어요"}
+              </p>
             </div>
-            <CandidateGrid
-              candidates={gen.gifCandidates}
-              selectedIdx={gif !== null ? gifIdx : null}
-              onSelect={chooseGif}
-            />
+
+            {view === "candidates" ? (
+              <CandidateGrid
+                candidates={gen.gifCandidates}
+                selectedIdx={null}
+                onSelect={chooseGif}
+              />
+            ) : (
+              <div className="flex h-[calc(100dvh-9.5rem)] gap-4">
+                {/* left rail: pick a different candidate without leaving the editor */}
+                <div className="w-40 shrink-0">
+                  <CandidateGrid
+                    variant="rail"
+                    candidates={gen.gifCandidates}
+                    selectedIdx={gifIdx}
+                    onSelect={chooseGif}
+                  />
+                </div>
+                {/* right: detail-page canvas with the draggable/resizable GIF */}
+                {gif !== null && (
+                  <DetailEditor
+                    product={selected}
+                    gifUrl={gif}
+                    backgroundUrl={detailBackground(selected.id)}
+                    onPlacementChange={(p) => {
+                      placementRef.current = p;
+                    }}
+                    onApply={applyNow}
+                  />
+                )}
+              </div>
+            )}
           </>
         )}
 
