@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Push to prod 🏯
 
-## Getting Started
+스마트스토어 상품을 골라 AI로 마케팅 에셋(정리된 스키마 · 생성 이미지 · GIF)을
+자동 제작하고 상세페이지에 반영하는 해커톤 프로젝트.
 
-First, run the development server:
+## 구조 (monorepo)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+.
+├── app/   # front — Next.js (App Router, TS, Tailwind) 파이프라인 위저드 UI
+└── api/   # back  — 기존 서버 코드를 clone 해서 사용 (placeholder)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 파이프라인
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. 스마트스토어 URL 입력
+2. 상품 목록 표시 → 사용자가 선택
+3. 썸네일 다운로드 + 상세페이지 스크래핑 → Claude로 스키마 정리
+4. 이미지 생성 모델 호출 (썸네일 + 3단계 상품 정보 입력)
+5. 4단계 결과로 GIF 제작
+6. 상세페이지 상단에 썸네일 교체/추가 + GIF 삽입
+7. (선택) 카드뉴스 + GIF 인스타그램 업로드
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 실행
 
-## Learn More
+```bash
+# front
+cd app
+cp .env.example .env.local   # NEXT_PUBLIC_USE_MOCK=1 이면 백엔드 없이 데모 가능
+npm install
+npm run dev                  # http://localhost:3000
 
-To learn more about Next.js, take a look at the following resources:
+# back — 기존 서버를 api/ 에 clone 후 :8000 으로 기동
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+API 계약은 [`api/README.md`](api/README.md), 타입은 `app/src/lib/types.ts` 참고.
