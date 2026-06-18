@@ -36,6 +36,9 @@ export function StoreApp() {
 
   // Latest GIF placement from the editor; read when the apply step fires.
   const placementRef = useRef<Placement | null>(null);
+  // Product id we've already kicked off generation for — prevents regenerating
+  // the same product when the user navigates back to it.
+  const startedFor = useRef<string | null>(null);
 
   const selected = useMemo(
     () => (productId ? PRODUCTS.find((p) => p.id === productId) ?? null : null),
@@ -66,6 +69,10 @@ export function StoreApp() {
   // step 3-5: generate assets whenever the selected product changes.
   useEffect(() => {
     if (!selected) return;
+    // Don't regenerate a product we've already generated for (e.g. when the user
+    // returns to it from the catalog) — reuse the cached `gen` state instead.
+    if (startedFor.current === selected.id) return;
+    startedFor.current = selected.id;
     let cancelled = false;
     generateAssets(selected.id, {
       thumbnailUrl: selected.thumbnailUrl,
@@ -89,6 +96,7 @@ export function StoreApp() {
       })
       .catch((e) => {
         if (cancelled) return;
+        startedFor.current = null; // allow a retry on failure
         setError(e instanceof Error ? e.message : String(e));
         router.replace(buildHref({ product: null, gif: null }), { scroll: false });
       });
