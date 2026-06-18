@@ -1,4 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
+import { isVideo } from "@/lib/media";
 
 /**
  * GIF candidate grid — reuses the catalog's 3-column layout, but each cell is a
@@ -9,9 +10,6 @@
  *  - "grid" (default): full 3×3 viewport grid, used before a candidate is chosen.
  *  - "rail": compact vertical strip, used on the left once the editor opens.
  */
-function isVideo(url: string) {
-  return /\.(mp4|webm|mov)(\?|$)/i.test(url);
-}
 
 export function CandidateGrid({
   candidates,
@@ -37,15 +35,17 @@ export function CandidateGrid({
     >
       {candidates.map((src, i) => {
         const selected = i === selectedIdx;
+        const pending = !src; // "" -> still generating (progressive reveal)
         return (
           <button
             key={i}
             type="button"
+            disabled={pending}
             onClick={() => onSelect(i)}
             className={[
               "group relative flex flex-col overflow-hidden rounded-2xl bg-white text-left transition",
               rail ? "aspect-square w-full shrink-0 p-1.5" : "min-h-0 p-2",
-              selected ? "ring-2 ring-[#f8501e]" : "hover:shadow-lg",
+              selected ? "ring-2 ring-[#f8501e]" : pending ? "" : "hover:shadow-lg",
             ].join(" ")}
           >
             <span
@@ -62,7 +62,14 @@ export function CandidateGrid({
               </span>
             )}
             <div className="flex flex-1 items-center justify-center overflow-hidden rounded-lg">
-              {isVideo(src) ? (
+              {pending ? (
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-200 border-t-[#f8501e]" />
+                  <span className={rail ? "text-[9px] text-zinc-400" : "text-xs text-zinc-400"}>
+                    생성중...
+                  </span>
+                </div>
+              ) : isVideo(src) ? (
                 <video
                   src={src}
                   autoPlay

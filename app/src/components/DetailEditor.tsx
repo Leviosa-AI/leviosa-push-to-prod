@@ -3,14 +3,12 @@
 /* eslint-disable @next/next/no-img-element */
 import { useState } from "react";
 import { Rnd } from "react-rnd";
+import { isVideo } from "@/lib/media";
+import { ChromaLoopVideo } from "@/components/ChromaLoopVideo";
 import type { Product } from "@/lib/types";
 
 /** Where the GIF sits on the detail-page canvas (px, relative to the background). */
 export type Placement = { x: number; y: number; width: number; height: number };
-
-function isVideo(url: string) {
-  return /\.(mp4|webm|mov)(\?|$)/i.test(url);
-}
 
 /**
  * Detail-page compositor: the 상세페이지 PNG is laid down as the background and
@@ -63,15 +61,14 @@ export function DetailEditor({
                 height: ref.offsetHeight,
               })
             }
-            className="z-10 cursor-move rounded-md border-2 border-dashed border-[#f8501e] bg-black/5"
+            className="z-10 cursor-move rounded-md border-2 border-dashed border-[#f8501e]/80 hover:border-[#f8501e]"
           >
             {isVideo(gifUrl) ? (
-              <video
+              // post-processed: green chroma-keyed to transparent + 0.2s trim +
+              // boomerang loop, so the detail page shows through behind it.
+              <ChromaLoopVideo
+                key={gifUrl}
                 src={gifUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
                 className="pointer-events-none h-full w-full object-contain"
               />
             ) : (

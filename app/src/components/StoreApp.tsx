@@ -10,9 +10,10 @@ import { applyChosenGif, generateAssets } from "@/lib/api";
 import { PRODUCTS } from "@/lib/products";
 import type { ApplyResult, GenerationResult } from "@/lib/types";
 
-/** Placeholder 상세페이지 PNG (tall) until the real per-product asset is wired. */
-function detailBackground(productId: string) {
-  return `https://picsum.photos/seed/${productId}-detail/800/1600`;
+/** Detail-page background for the editor preview — same tall 상세페이지 for every
+ * product for the demo (public/detail-bg.jpg). */
+function detailBackground() {
+  return "/detail-bg.jpg";
 }
 
 // URL is the source of truth for navigation:
@@ -47,10 +48,6 @@ export function StoreApp() {
   const [gen, setGen] = useState<GenerationResult | null>(null);
   const [applied, setApplied] = useState<{ key: string; result: ApplyResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // hackathon toggle: false = 프리메이드(mock), true = 리얼콜(Replicate, 9 parallel).
-  // Only changeable on the catalog screen, so the generate effect can safely
-  // capture it when a product is selected.
-  const [realMode, setRealMode] = useState(false);
 
   // Build an href off the current params, setting/deleting the given keys.
   const buildHref = useCallback(
@@ -71,9 +68,19 @@ export function StoreApp() {
     if (!selected) return;
     let cancelled = false;
     generateAssets(selected.id, {
-      real: realMode,
       thumbnailUrl: selected.thumbnailUrl,
       name: selected.name,
+      // show finished candidates as they arrive (once the first one is ready,
+      // end the loading spinner and reveal the grid; the rest fill in).
+      onPartial: (candidates) => {
+        if (cancelled || !candidates.some(Boolean)) return;
+        setGen({
+          productId: selected.id,
+          schema: { productId: selected.id, title: selected.name, highlights: [], description: "", attributes: {} },
+          gifCandidates: candidates,
+        });
+        setError(null);
+      },
     })
       .then((r) => {
         if (cancelled) return;
@@ -96,7 +103,7 @@ export function StoreApp() {
   const genReady = !!gen && !!selected && gen.productId === selected.id;
   const gif =
     genReady && gifIdx !== null && gifIdx >= 0 && gifIdx < gen!.gifCandidates.length
-      ? gen!.gifCandidates[gifIdx]
+      ? gen!.gifCandidates[gifIdx] || null // "" = still generating -> treat as unselected
       : null;
   // Apply only fires once the user confirms a placement in the editor (?apply=1),
   // not the moment a candidate is picked — picking a gif opens the editor.
@@ -165,35 +172,11 @@ export function StoreApp() {
 
         {/* step 1-2: product catalog — 3x3 visible on one screen */}
         {view === "catalog" && (
-          <>
-            <div className="mx-auto grid max-w-2xl grid-cols-3 gap-3">
-              {PRODUCTS.map((p) => (
-                <ProductCard key={p.id} product={p} onSelect={(prod) => selectProduct(prod.id)} />
-              ))}
-            </div>
-
-            {/* hackathon toggle: 프리메이드 vs 리얼콜 (bottom-left) */}
-            <div className="fixed bottom-4 left-4 z-20 flex items-center rounded-full bg-white p-1 text-xs font-medium shadow-md">
-              <button
-                type="button"
-                onClick={() => setRealMode(false)}
-                className={`rounded-full px-3 py-1.5 transition ${
-                  !realMode ? "bg-[#f8501e] text-white" : "text-zinc-500"
-                }`}
-              >
-                프리메이드
-              </button>
-              <button
-                type="button"
-                onClick={() => setRealMode(true)}
-                className={`rounded-full px-3 py-1.5 transition ${
-                  realMode ? "bg-[#f8501e] text-white" : "text-zinc-500"
-                }`}
-              >
-                리얼콜
-              </button>
-            </div>
-          </>
+          <div className="mx-auto grid max-w-2xl grid-cols-3 gap-3">
+            {PRODUCTS.map((p) => (
+              <ProductCard key={p.id} product={p} onSelect={(prod) => selectProduct(prod.id)} />
+            ))}
+          </div>
         )}
 
         {/* loading between steps */}
@@ -250,7 +233,7 @@ export function StoreApp() {
                   <DetailEditor
                     product={selected}
                     gifUrl={gif}
-                    backgroundUrl={detailBackground(selected.id)}
+                    backgroundUrl={selected.detailImageUrl ?? detailBackground()}
                     onPlacementChange={(p) => {
                       placementRef.current = p;
                     }}

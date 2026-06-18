@@ -14,6 +14,8 @@ export interface Product {
   currency: string;
   thumbnailUrl: string;
   detailUrl: string;
+  /** Detail-page image URL used as the editor background (the mp4 asset is composited on top). */
+  detailImageUrl?: string;
   staffPick?: boolean;
   bestSeller?: boolean;
 }

@@ -41,19 +41,22 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 // pipeline starts at step 3 once the user picks one.
 
 /**
- * Pipeline step 3-5: produce 9 GIF candidates for the chosen product.
- *
- * Two paths, picked by the bottom-left toggle on the catalog (hackathon switch):
- *  - premade (default): instant mock candidates, no backend needed.
- *  - real: fire 9 Replicate predictions in parallel via our Next API route
- *    (`/api/replicate-generate`, which holds REPLICATE_API_TOKEN server-side)
- *    and resolve once all 9 are back.
+ * Pipeline step 3-5: produce 9 GIF candidates for the chosen product by firing
+ * 9 Replicate (SeeDance I2V) predictions in parallel via our Next API route
+ * (`/api/replicate-generate`, which holds REPLICATE_API_TOKEN server-side) and
+ * polling until they settle.
  */
 export async function generateAssets(
   productId: string,
-  opts: { real?: boolean; thumbnailUrl?: string; name?: string } = {},
+  opts: {
+    thumbnailUrl?: string;
+    name?: string;
+    /** called each poll with the candidates so far ("" = still generating) so
+     * the UI can show finished ones immediately instead of waiting for all 9. */
+    onPartial?: (candidates: string[]) => void;
+  } = {},
 ): Promise<GenerationResult> {
-  if (!opts.real) return premadeGeneration(productId);
+  const schema = { productId, title: opts.name ?? "", highlights: [], description: "", attributes: {} };
 
   // 1) create 9 predictions
   const createRes = await fetch("/api/replicate-generate", {
@@ -66,8 +69,9 @@ export async function generateAssets(
   }
   const { ids } = (await createRes.json()) as { ids: string[] };
 
-  // 2) poll until all 9 succeed (video gen can take a few minutes)
+  // 2) poll; emit partial results as each one finishes (progressive display).
   const deadline = Date.now() + 5 * 60_000;
+  const settled = (s: string) => s === "succeeded" || s === "failed" || s === "canceled";
   for (;;) {
     await new Promise((r) => setTimeout(r, 3000));
     const pollRes = await fetch(`/api/replicate-generate?ids=${ids.join(",")}`);
@@ -77,16 +81,17 @@ export async function generateAssets(
     const { results } = (await pollRes.json()) as {
       results: { status: string; output: string | null; error: string | null }[];
     };
-    const failed = results.find((r) => r.status === "failed" || r.status === "canceled");
-    if (failed) throw new Error(`generation failed: ${failed.error ?? "unknown"}`);
-    if (results.every((r) => r.status === "succeeded" && r.output)) {
-      return {
-        productId,
-        schema: { productId, title: opts.name ?? "", highlights: [], description: "", attributes: {} },
-        gifCandidates: results.map((r) => r.output as string),
-      };
+    const candidates = results.map((r) => r.output ?? ""); // "" = pending/failed
+    opts.onPartial?.(candidates);
+
+    // done when every prediction has settled (tolerate individual failures so
+    // one bad generation doesn't sink the whole batch).
+    if (results.every((r) => settled(r.status))) {
+      return { productId, schema, gifCandidates: candidates };
     }
-    if (Date.now() > deadline) throw new Error("generation timed out");
+    if (Date.now() > deadline) {
+      return { productId, schema, gifCandidates: candidates };
+    }
   }
 }
 
@@ -117,24 +122,4 @@ export async function applyChosenGif(
     };
   }
   return post<ApplyResult>("/api/apply", { productId, gifUrl, originalThumbnail, placement });
-}
-
-// --- premade / mock data ------------------------------------------------------
-
-function premadeGeneration(productId: string): Promise<GenerationResult> {
-  const result: GenerationResult = {
-    productId,
-    schema: {
-      productId,
-      title: "AI가 다듬은 상품명",
-      highlights: ["핵심 셀링포인트 1", "핵심 셀링포인트 2", "핵심 셀링포인트 3"],
-      description: "Claude가 상세페이지에서 추출·정리한 설명 텍스트입니다.",
-      attributes: { 색상: "블랙", 소재: "면 100%", 사이즈: "Free" },
-    },
-    gifCandidates: Array.from(
-      { length: 9 },
-      (_, i) => `https://picsum.photos/seed/${productId}-gif${i}/600/600`,
-    ),
-  };
-  return new Promise((r) => setTimeout(() => r(result), 1400));
 }
