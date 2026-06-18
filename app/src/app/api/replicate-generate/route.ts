@@ -79,12 +79,19 @@ export async function POST(req: Request) {
   }
 }
 
+// Replicate prediction ids are opaque alphanumeric tokens. Anything else is
+// rejected so a caller can't smuggle "../" or other characters into the request
+// path and redirect the outgoing call to an unintended endpoint (SSRF, CWE-918).
+const ID_RE = /^[a-z0-9]+$/i;
+
 // GET ?ids=a,b,c : poll each prediction, return status + output url.
 export async function GET(req: Request) {
   if (!TOKEN) {
     return NextResponse.json({ error: "REPLICATE_API_TOKEN not set" }, { status: 500 });
   }
-  const ids = new URL(req.url).searchParams.get("ids")?.split(",").filter(Boolean) ?? [];
+  const ids = (new URL(req.url).searchParams.get("ids")?.split(",") ?? []).filter(
+    (id) => ID_RE.test(id),
+  );
   if (!ids.length) return NextResponse.json({ error: "ids required" }, { status: 400 });
 
   const results = await Promise.all(
