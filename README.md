@@ -1,47 +1,51 @@
-# Push to prod 🏯
+# leviosa-push-to-prod
 
-스마트스토어 상품을 골라 AI로 마케팅 에셋(정리된 스키마 · 생성 이미지 · GIF)을
-자동 제작하고 상세페이지에 반영하는 해커톤 프로젝트.
+Hackathon app that turns a Naver SmartStore product into AI-generated GIF assets and pushes them onto the product detail page.
 
-## 구조 (monorepo)
+## Overview
+- **Service:** Internal hackathon project (Naver SmartStore marketing assets); not part of the Agency product.
+- **Role:** Next.js wizard UI: pick a product, generate 9 image-to-video candidates via Replicate, place the chosen GIF on the detail page, and apply it to the SmartStore listing.
+- **Integration:** Server-side route handlers call [leviosa-sourcing-server-naver](https://github.com/Leviosa-AI/leviosa-sourcing-server-naver) (`/api/naver-smartstore/commerce/detail/*`, `X-Hackathon-Key` auth) and the Replicate API.
+- **Runtime:** Next.js 16 (App Router, TypeScript, Tailwind 4) in `app/`; no datastore of its own. `api/` holds only backend contract notes.
+- **Deployment:** Per CI config, pushes to `main` deploy `app/` to Vercel production (`.github/workflows/deploy.yml`); `.replit` also defines a Replit Autoscale deployment.
 
-```
-.
-├── app/   # front — Next.js (App Router, TS, Tailwind) 파이프라인 위저드 UI
-└── api/   # back  — 기존 서버 코드를 clone 해서 사용 (placeholder)
-```
+## Documentation
+| Category | Document | Description |
+| --- | --- | --- |
+| Handbook | [Local development](#local-development) / [Deployment](#deployment) | Running the app, env vars, and deploy paths (below) |
+| Reference | [api/README.md](api/README.md) | Backend contract: mapping to leviosa-sourcing-server-naver endpoints and Naver auth modes |
+| Reference | [app/README.md](app/README.md) | Default Next.js scaffold README |
+| Reference | [app/AGENTS.md](app/AGENTS.md) / [app/CLAUDE.md](app/CLAUDE.md) | Agent rules for the Next.js version in use |
 
-## 파이프라인
+## Related Repositories
+- [leviosa-sourcing-server-naver](https://github.com/Leviosa-AI/leviosa-sourcing-server-naver) — backend this app calls (detail-page image fetch, GIF injection, video-to-GIF replacement)
+- [Service registry](https://github.com/Leviosa-AI/leviosa-standards/blob/main/services/README.md) — all Leviosa repos and how they connect
 
-1. 스마트스토어 URL 입력
-2. 상품 목록 표시 → 사용자가 선택
-3. 썸네일 다운로드 + 상세페이지 스크래핑 → Claude로 스키마 정리
-4. 이미지 생성 모델 호출 (썸네일 + 3단계 상품 정보 입력)
-5. 4단계 결과로 GIF 제작
-6. 상세페이지 상단에 썸네일 교체/추가 + GIF 삽입
-7. (선택) 카드뉴스 + GIF 인스타그램 업로드
+## Pipeline
+1. Enter a SmartStore URL (the demo catalog is hardcoded in `app/src/lib/products.ts`).
+2. Select a product.
+3. Fetch the thumbnail and detail-page images (`/api/detail-images` → backend `detail/fetch`).
+4. Generate 9 image-to-video candidates (Replicate, `/api/replicate-generate`).
+5. Choose a candidate and position it in the detail-page editor.
+6. Apply it (`/api/apply` → backend `detail/replace-with-video`, which converts the MP4 to GIF and updates the detail page).
+7. (Optional, not implemented) Upload card news + GIFs to Instagram.
 
-## 실행
-
+## Local development
 ```bash
-# front
 cd app
-cp .env.example .env.local   # NEXT_PUBLIC_USE_MOCK=1 이면 백엔드 없이 데모 가능
 npm install
-npm run dev                  # http://localhost:3000
-
-# back — 기존 서버를 api/ 에 clone 후 :8000 으로 기동
+npm run dev        # http://localhost:3000
 ```
 
-API 계약은 [`api/README.md`](api/README.md), 타입은 `app/src/lib/types.ts` 참고.
+Environment variables (`app/.env.local` locally, Vercel project env in production):
 
-## 배포 (Replit)
+| Variable | Purpose |
+| --- | --- |
+| `LEVIOSA_API_BASE` | Backend base URL; defaults to `https://naver.sourcing.leviosa.ai.kr` |
+| `HACKATHON_API_KEY` | Shared secret sent as `X-Hackathon-Key`; server-side only |
+| `REPLICATE_API_TOKEN`, `REPLICATE_MODEL` | Replicate image-to-video generation |
+| `NEXT_PUBLIC_USE_MOCK` | `1` returns mock apply results so the UI runs without the backend |
 
-레포가 Replit-ready 입니다 (`.replit` 설정 포함, 모노레포 `app/` 기준).
-
-1. Replit → **Create App → Import from GitHub** → `Leviosa-AI/leviosa-push-to-prod`
-2. **Run** 누르면 워크스페이스에서 dev 서버 기동
-3. **Deploy** (Autoscale) → `cd app && npm ci && npm run build` 후 `next start` 로 서빙
-
-env 없이 mock 모드로 바로 동작합니다. 실제 백엔드 연결 시 Replit Secrets에
-`NEXT_PUBLIC_API_URL` 을 넣으세요 (그러면 자동으로 라이브 모드).
+## Deployment
+- **Vercel:** `.github/workflows/deploy.yml` runs `vercel pull/build/deploy --prod` from `app/` on push to `main` (requires the `VERCEL_TOKEN` repository secret).
+- **Replit:** import the repo; **Run** starts the dev server, **Deploy** (Autoscale) runs `cd app && npm ci && npm run build` and serves with `next start`.
